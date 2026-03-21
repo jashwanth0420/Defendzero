@@ -1,0 +1,307 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------
+// ENUMS
+// ----------------------------------------
+
+enum Role {
+  USER
+  GUARDIAN
+  DOCTOR
+  PHARMACY
+}
+
+enum InteractionSeverity {
+  CAUTION
+  DANGER
+}
+
+enum PregnancyRiskLevel {
+  SAFE
+  CAUTION
+  CONTRAINDICATED
+}
+
+enum ScheduleStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AdherenceStatus {
+  TAKEN
+  MISSED
+  SKIPPED
+}
+
+// ----------------------------------------
+// MODELS
+// ----------------------------------------
+
+model User {
+  id         String   @id @default(uuid())
+  email      String   @unique
+  password   String?
+  role       Role     @default(USER)
+  firstName  String
+  lastName   String
+  googleId   String?  @unique
+  phone      String?
+  isVerified Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Profile data (if they are a patient)
+  isPregnant Boolean @default(false)
+  trimester  Int? // 1, 2, or 3
+
+  // Doctor-specific fields
+  licenseNumber  String?
+  specialization String?
+
+  // Pharmacy-specific
+  storeName String?
+
+  // Firebase Messaging
+  fcmToken String?
+
+  // Relations
+
+  // Guardian mapping (Patient side: users who guard this patient)
+  guardians GuardianPatient[] @relation("PatientRelation")
+  // Guardian mapping (Guardian side: patients this user guards)
+  patients  GuardianPatient[] @relation("GuardianRelation")
+
+  // Doctor Comm
+  sentMessages     DoctorMessage[] @relation("MessageSender")
+  receivedMessages DoctorMessage[] @relation("MessageReceiver")
+
+  // Adherence
+  schedules     Schedule[]
+  adherenceLogs AdherenceLog[]
+
+  // Prescriptions
+  prescriptionsAsPatient Prescription[] @relation("PrescriptionPatient")
+  prescriptionsAsDoctor  Prescription[] @relation("PrescriptionDoctor")
+
+  // Purchase History
+  purchases PurchaseLog[]
+
+  // Doctor-Patient Relationship
+  doctorPatients DoctorPatient[] @relation("DoctorToPatient")
+  patientDoctors DoctorPatient[] @relation("PatientToDoctor")
+
+  @@index([email])
+}
+
+// Guardian mapping table (User to User)
+model GuardianPatient {
+  id         String   @id @default(uuid())
+  guardianId String
+  patientId  String
+  createdAt  DateTime @default(now())
+
+  guardian User @relation("GuardianRelation", fields: [guardianId], references: [id], onDelete: Cascade)
+  patient  User @relation("PatientRelation", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([guardianId, patientId])
+  @@index([guardianId])
+  @@index([patientId])
+}
+
+// Medicine Catalog
+model Medicine {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  description   String?
+  requiresToken Boolean  @default(false) // For Pharmacy compliance
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  ingredients       MedicineIngredient[]
+  schedules         Schedule[]
+  prescriptionItems PrescriptionMedicine[]
+  purchases         PurchaseLog[]
+
+  @@index([name])
+}
+
+// Core active ingredients for deterministic safety checks
+model Ingredient {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  isAntibiotic Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  medicines MedicineIngredient[]
+
+  // Risk mappings
+  pregnancyRisks PregnancyRisk[]
+
+  // Drug interactions (Ingredient A interacts with Ingredient B)
+  interactionsA DrugInteraction[] @relation("IngredientA")
+  interactionsB DrugInteraction[] @relation("IngredientB")
+
+  @@index([name])
+}
+
+// Mapping Medicine to Ingredients (M:N)
+model MedicineIngredient {
+  id           String  @id @default(uuid())
+  medicineId   String
+  ingredientId String
+  amount       String? // e.g., "500mg"
+
+  medicine   Medicine   @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([medicineId, ingredientId])
+}
+
+// Deterministic drug interaction pairs
+model DrugInteraction {
+  id            String              @id @default(uuid())
+  ingredientAId String
+  ingredientBId String
+  severity      InteractionSeverity
+  description   String
+
+  ingredientA Ingredient @relation("IngredientA", fields: [ingredientAId], references: [id], onDelete: Cascade)
+  ingredientB Ingredient @relation("IngredientB", fields: [ingredientBId], references: [id], onDelete: Cascade)
+
+  @@unique([ingredientAId, ingredientBId])
+}
+
+// Deterministic pregnancy risk by ingredient
+model PregnancyRisk {
+  id           String             @id @default(uuid())
+  ingredientId String
+  trimester    Int? // Null means applies to all trimesters
+  riskLevel    PregnancyRiskLevel
+  description  String
+
+  ingredient Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+
+  @@unique([ingredientId, trimester])
+}
+
+// Medicine Reminders
+model Schedule {
+  id           String         @id @default(uuid())
+  patientId    String
+  medicineId   String
+  dosage       String
+  frequency    String // e.g., "DAILY", "WEEKLY"
+  timeOfDay    String // e.g., "08:00"
+  startDate    DateTime       @default(now())
+  endDate      DateTime?
+  mealRelation String? // e.g., "BEFORE_MEAL"
+  status       ScheduleStatus @default(ACTIVE)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  patient  User           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicine Medicine       @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+  logs     AdherenceLog[]
+
+  @@index([patientId])
+}
+
+// Logs for Adherence (Reminders)
+model AdherenceLog {
+  id         String          @id @default(uuid())
+  scheduleId String
+  patientId  String
+  status     AdherenceStatus
+  timestamp  DateTime        @default(now())
+  takenAt    DateTime?
+  notes      String?
+
+  schedule Schedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  patient  User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([scheduleId])
+}
+
+// Doctor Communication (Non-prescriptive)
+model DoctorMessage {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  content    String
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("MessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+// Prescriptions details
+model Prescription {
+  id        String    @id @default(uuid())
+  patientId String
+  doctorId  String
+  notes     String?
+  issuedAt  DateTime  @default(now())
+  expiresAt DateTime?
+
+  patient User @relation("PrescriptionPatient", fields: [patientId], references: [id], onDelete: Cascade)
+  doctor  User @relation("PrescriptionDoctor", fields: [doctorId], references: [id], onDelete: Cascade)
+
+  medicines PrescriptionMedicine[]
+
+  @@index([patientId])
+}
+
+// Specific medicines on a prescription
+model PrescriptionMedicine {
+  id             String @id @default(uuid())
+  prescriptionId String
+  medicineId     String
+  dosage         String
+  refills        Int    @default(0)
+
+  prescription Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicine     Medicine     @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+}
+
+// Pharmacy Compliance - Purchase logging
+model PurchaseLog {
+  id          String   @id @default(uuid())
+  patientId   String
+  medicineId  String
+  pharmacyId  String // Refers to pharmacy User ID or explicit pharmacy table
+  quantity    Int
+  purchasedAt DateTime @default(now())
+
+  patient  User     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  medicine Medicine @relation(fields: [medicineId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([medicineId])
+}
+
+model DoctorPatient {
+  id        String   @id @default(uuid())
+  doctorId  String
+  patientId String
+  createdAt DateTime @default(now())
+
+  doctor  User @relation("DoctorToPatient", fields: [doctorId], references: [id], onDelete: Cascade)
+  patient User @relation("PatientToDoctor", fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@unique([doctorId, patientId])
+  @@index([doctorId])
+  @@index([patientId])
+}
+
