@@ -1,7 +1,7 @@
 import { prisma } from '../../config/prisma';
 
 export class DoctorCommService {
-  public async sendMessage(senderId: string, receiverId: string, content: string) {
+  public async sendMessage(senderId: string, receiverId: string, content: string, type: 'NOTE' | 'ALERT' | 'REMINDER' = 'NOTE') {
     const sender = await prisma.user.findUnique({ where: { id: senderId } });
     const receiver = await prisma.user.findUnique({ where: { id: receiverId } });
 
@@ -17,8 +17,21 @@ export class DoctorCommService {
       throw new Error('Unauthorized communication path');
     }
 
-    const message = await prisma.doctorMessage.create({
-      data: { senderId, receiverId, content }
+    const message = await prisma.$transaction(async (tx) => {
+      const created = await tx.doctorMessage.create({
+        data: { senderId, receiverId, content, type }
+      });
+
+      await tx.notification.create({
+        data: {
+          userId: receiverId,
+          type: 'DOCTOR_MESSAGE',
+          title: `Doctor ${type.toLowerCase()}`,
+          body: content,
+        }
+      });
+
+      return created;
     });
 
     return message;

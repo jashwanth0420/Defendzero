@@ -40,6 +40,35 @@ enum AdherenceStatus {
   SKIPPED
 }
 
+enum TimingType {
+  BEFORE_FOOD
+  AFTER_FOOD
+  WITH_FOOD
+}
+
+enum MedicationFrequency {
+  DAILY
+  WEEKLY
+}
+
+enum MedicationLogStatus {
+  TAKEN
+  MISSED
+}
+
+enum MessageType {
+  NOTE
+  ALERT
+  REMINDER
+}
+
+enum NotificationType {
+  REMINDER
+  MISSED_DOSE
+  SAFETY_WARNING
+  DOCTOR_MESSAGE
+}
+
 // ----------------------------------------
 // MODELS
 // ----------------------------------------
@@ -81,6 +110,13 @@ model User {
   // Doctor Comm
   sentMessages     DoctorMessage[] @relation("MessageSender")
   receivedMessages DoctorMessage[] @relation("MessageReceiver")
+
+  // User dashboard medication system
+  medicationSchedules MedicationSchedule[]
+  medicationLogs      MedicationLog[]
+  prescriptionRecords PrescriptionRecord[]
+  purchaseTokens      PurchaseToken[]
+  notifications       Notification[]
 
   // Adherence
   schedules     Schedule[]
@@ -236,6 +272,7 @@ model DoctorMessage {
   senderId   String
   receiverId String
   content    String
+  type       MessageType @default(NOTE)
   isRead     Boolean  @default(false)
   createdAt  DateTime @default(now())
 
@@ -244,6 +281,91 @@ model DoctorMessage {
 
   @@index([senderId])
   @@index([receiverId])
+}
+
+model MedicationSchedule {
+  id            String              @id @default(uuid())
+  userId        String
+  medicineName  String
+  composition   String[]
+  dosage        String
+  frequency     MedicationFrequency
+  timingType    TimingType
+  scheduleTimes String[]
+  startDate     DateTime
+  endDate       DateTime?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  logs MedicationLog[]
+
+  @@index([userId])
+}
+
+model MedicationLog {
+  id         String            @id @default(uuid())
+  scheduleId String
+  userId     String
+  date       DateTime
+  status     MedicationLogStatus
+  timestamp  DateTime          @default(now())
+
+  schedule MedicationSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([scheduleId])
+}
+
+model PrescriptionRecord {
+  id           String   @id @default(uuid())
+  userId        String
+  medicines     Json
+  doctorName    String?
+  issuedDate    DateTime
+  verified      Boolean  @default(false)
+  fileUrl       String?
+  extractedText String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseTokens PurchaseToken[]
+
+  @@index([userId])
+}
+
+model PurchaseToken {
+  id             String   @id @default(uuid())
+  userId          String
+  prescriptionId  String?
+  medicines       Json
+  maxQuantity     Int
+  usedQuantity    Int      @default(0)
+  expiryDate      DateTime
+  tokenHash       String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  prescription PrescriptionRecord? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  title     String
+  body      String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
 
 // Prescriptions details

@@ -1,5 +1,6 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
+import { startAdherenceWorker } from './workers/adherence.worker';
 
 let app: any;
 try {
@@ -23,6 +24,10 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   try {
+    if (process.env.NODE_ENV !== 'test') {
+      startAdherenceWorker();
+    }
+
     app.listen(PORT, () => {
       console.log(`[DefendZero] Server running on port ${PORT}`);
     });

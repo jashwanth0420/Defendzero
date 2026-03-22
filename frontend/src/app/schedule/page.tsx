@@ -3,19 +3,20 @@
 import { useState, useEffect } from 'react';
 import { Clock, Plus, Trash2, Calendar, Utensils, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { AdherenceAPI, MedicinesAPI } from '@/lib/api';
+import { MedicationAPI, MedicinesAPI } from '@/lib/api';
 
 export default function SchedulePage() {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [medicines, setMedicines] = useState<any[]>([]);
   const [query, setQuery] = useState('');
   const [selectedMed, setSelectedMed] = useState<any>(null);
+  const [composition, setComposition] = useState('');
   
   const [formData, setFormData] = useState({
     dosage: '1 tablet',
     frequency: 'DAILY',
     timeOfDay: '08:00',
-    mealRelation: 'WITH_MEAL'
+    mealRelation: 'WITH_FOOD'
   });
 
   const [loading, setLoading] = useState(true);
@@ -28,8 +29,8 @@ export default function SchedulePage() {
   async function loadSchedules() {
     setLoading(true);
     try {
-      const res: any = await AdherenceAPI.getSchedules();
-      setSchedules(res.data || []);
+      const next = await MedicationAPI.getSchedules() as any;
+      setSchedules(next.data || []);
     } catch (err) {
       console.error(err);
     } finally {
@@ -42,7 +43,8 @@ export default function SchedulePage() {
     const timer = setTimeout(async () => {
       if (query.length > 2) {
         const res: any = await MedicinesAPI.search(query);
-        setMedicines(res.data || []);
+        const data = Array.isArray(res) ? res : (res.data || res.results || []);
+        setMedicines(data);
       } else {
         setMedicines([]);
       }
@@ -54,17 +56,19 @@ export default function SchedulePage() {
     if (!selectedMed) return;
     setAdding(true);
     try {
-      await AdherenceAPI.createSchedule({
-        medicineId: selectedMed.id,
+      await MedicationAPI.createSchedule({
+        medicineName: selectedMed.name,
+        composition: composition.split(',').map((x: string) => x.trim()).filter(Boolean),
         dosage: formData.dosage,
         frequency: formData.frequency,
-        timeOfDay: formData.timeOfDay,
+        timingType: formData.mealRelation,
+        scheduleTimes: [formData.timeOfDay],
         startDate: new Date().toISOString(),
-        mealRelation: formData.mealRelation
       });
       // Reset & Refresh
       setSelectedMed(null);
       setQuery('');
+      setComposition('');
       loadSchedules();
     } catch (err: any) {
       alert("Error adding schedule: " + err.message);
@@ -99,12 +103,23 @@ export default function SchedulePage() {
                 {medicines.length > 0 && (
                    <div className="bg-slate-950 border border-slate-800 rounded-xl mt-1 overflow-hidden">
                       {medicines.map(m => (
-                        <button key={m.id} onClick={() => { setSelectedMed(m); setQuery(m.name); setMedicines([]); }} className="w-full text-left px-4 py-3 hover:bg-slate-900 text-sm text-slate-300 transition-colors uppercase font-bold tracking-tight">
+                        <button key={m.id || m.name} onClick={() => { setSelectedMed(m); setQuery(m.name); setMedicines([]); }} className="w-full text-left px-4 py-3 hover:bg-slate-900 text-sm text-slate-300 transition-colors uppercase font-bold tracking-tight">
                            {m.name}
                         </button>
                       ))}
                    </div>
                 )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase tracking-widest">Composition (comma separated)</label>
+                <input
+                  type="text"
+                  value={composition}
+                  onChange={(e) => setComposition(e.target.value)}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl py-3 px-4 text-white focus:border-indigo-500 outline-none"
+                  placeholder="e.g. acetaminophen"
+                />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -154,12 +169,12 @@ export default function SchedulePage() {
                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 flex items-center justify-center border border-indigo-500/20">
                           <Clock className="w-6 h-6 text-indigo-400" />
                        </div>
-                       <div>
-                          <h3 className="text-xl font-black text-white uppercase tracking-tight">{s.medicine.name}</h3>
+                        <div>
+                          <h3 className="text-xl font-black text-white uppercase tracking-tight">{s.medicineName}</h3>
                           <div className="flex gap-4 text-slate-400 text-sm mt-1">
                              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {s.frequency}</span>
-                             <span className="flex items-center gap-1 font-bold text-slate-300">@{s.timeOfDay}</span>
-                             <span className="flex items-center gap-1"><Utensils className="w-3 h-3" /> {s.mealRelation}</span>
+                            <span className="flex items-center gap-1 font-bold text-slate-300">@{(s.scheduleTimes || []).join(', ')}</span>
+                            <span className="flex items-center gap-1"><Utensils className="w-3 h-3" /> {s.timingType}</span>
                           </div>
                        </div>
                     </div>

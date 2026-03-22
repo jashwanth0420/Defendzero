@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthAPI } from '@/lib/api';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, ArrowRight, Mail, Lock } from 'lucide-react';
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const role = searchParams.get('role') || 'USER';
@@ -107,5 +107,13 @@ export default function LoginPage() {
         ← BACK TO ROLE SELECTION
       </button>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-950" />}>
+      <LoginPageContent />
+    </Suspense>
   );
 }

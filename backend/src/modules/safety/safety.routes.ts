@@ -7,5 +7,6 @@ const safetyController = new SafetyController();
 // Note: authenticateJWT and requireUser are already applied at parent level in v1/index.ts
 // Centralized rule engine evaluation bound
 router.post('/check', safetyController.checkInteraction);
+router.post('/verify', safetyController.verifyMedicineIntelligence.bind(safetyController));
 
 export default router;

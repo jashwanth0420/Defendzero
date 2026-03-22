@@ -5,7 +5,7 @@ export const EnvSchema = z.object({
   PORT: z.string().default('5000'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
   DATABASE_URL: z.string(),
-  REDIS_URL: z.string().default('redis://localhost:6379'),
+  REDIS_URL: z.string().optional(),
   JWT_SECRET: z.string(),
   GOOGLE_CLIENT_ID: z.string().optional(),
 });

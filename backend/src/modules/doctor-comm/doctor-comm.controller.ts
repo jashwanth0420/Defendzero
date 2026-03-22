@@ -9,13 +9,14 @@ export class DoctorCommController {
   
   public async send(req: AuthenticatedRequest, res: Response) {
     try {
-      const { receiverId, content } = z.object({
+      const { receiverId, content, type } = z.object({
         receiverId: z.string().uuid(),
-        content: z.string().min(1)
+        content: z.string().min(1),
+        type: z.enum(['NOTE', 'ALERT', 'REMINDER']).default('NOTE')
       }).parse(req.body);
 
       const senderId = req.user!.id;
-      const result = await doctorCommService.sendMessage(senderId, receiverId, content);
+      const result = await doctorCommService.sendMessage(senderId, receiverId, content, type);
 
       res.status(201).json({ success: true, data: result });
     } catch (error: any) {

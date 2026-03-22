@@ -2,8 +2,11 @@ import { Request, Response } from 'express';
 import { SafetyEngineService } from './safety.service';
 import { z } from 'zod';
 import { AuthenticatedRequest } from '../../middlewares/auth.middleware';
+import { SafetyEngineService as MultiSourceSafetyEngineService } from '../medicine-safety/safety-engine.service';
+import { safetyCheckSchema } from '../medicine-safety/safety.schema';
 
 const safetyEngineService = new SafetyEngineService();
+const multiSourceSafetyEngineService = new MultiSourceSafetyEngineService();
 
 export class SafetyController {
   
@@ -39,6 +42,20 @@ export class SafetyController {
       } else {
          // Service thrown errors bubble up cleanly
          res.status(403).json({ success: false, error: error.message });
+      }
+    }
+  }
+
+  public async verifyMedicineIntelligence(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const payload = safetyCheckSchema.parse(req.body);
+      const result = await multiSourceSafetyEngineService.runSafetyCheck(payload);
+      res.status(200).json({ success: true, data: result });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ success: false, error: 'Malformed Payload boundary', details: error.issues });
+      } else {
+        res.status(500).json({ success: false, error: error.message || 'Failed to verify medicine intelligence' });
       }
     }
   }

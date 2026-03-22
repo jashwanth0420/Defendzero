@@ -8,6 +8,7 @@ import authRoutes from '../auth.routes';
 import protectedRoutes from '../protected.routes';
 import medicinesRoutes from '../../modules/medicines/medicines.routes';
 import doctorRoutes from '../../modules/doctor/doctor.routes';
+import medicationRoutes from '../../modules/medication/medication.routes';
 
 import { authenticateJWT } from '../../middlewares/auth.middleware';
 import { requireDoctor, requirePharmacy, requireGuardian, requireUser } from '../../middlewares/role.middleware';
@@ -27,6 +28,7 @@ router.use('/user/safety', authenticateJWT, requireUser, safetyRoutes);
 router.use('/user/adherence', authenticateJWT, requireUser, adherenceRoutes);
 router.use('/user/messages', authenticateJWT, requireUser, doctorCommRoutes);
 router.use('/user/medicines', authenticateJWT, requireUser, medicinesRoutes);
+router.use('/user/medication', authenticateJWT, requireUser, medicationRoutes);
 
 // ========== GUARDIAN FEATURES ==========
 router.use('/guardian', authenticateJWT, requireGuardian, guardianRoutes);

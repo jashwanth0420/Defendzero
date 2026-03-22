@@ -1,5 +1,5 @@
 import { prisma } from '../../config/prisma';
-import { AdherenceQueueService } from '../../jobs/adherence.queue';
+import { AdherenceQueueService } from '../../queues/adherence.queue';
 
 const adherenceQueueService = new AdherenceQueueService();
 

@@ -1,40 +1,33 @@
-import Redis from 'ioredis';
-import * as dotenv from 'dotenv';
-dotenv.config();
+import 'dotenv/config';
+import IORedis from 'ioredis';
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
-const ENABLE_QUEUE = process.env.ENABLE_QUEUE === 'true';
+const redisUrl = process.env.REDIS_URL;
 
-let redis: Redis | null = null;
-let isRedisConnected = false;
-
-if (ENABLE_QUEUE) {
-  try {
-    redis = new Redis(REDIS_URL, {
-      maxRetriesPerRequest: null, // Required for BullMQ
-      retryStrategy: (times) => {
-        if (times > 3) {
-           console.warn('⚠️ Redis connection failed multiple times. Disabling queue features.');
-           return null; // Stop retrying
-        }
-        return Math.min(times * 100, 3000);
-      }
-    });
-
-    redis.on('connect', () => {
-      isRedisConnected = true;
-      console.log('✅ Redis connected successfully.');
-    });
-
-    redis.on('error', (err) => {
-      isRedisConnected = false;
-      console.warn('⚠️ Redis connection error:', err.message);
-    });
-  } catch (error) {
-    console.warn('⚠️ Failed to initialize Redis client:', error);
-  }
-} else {
-  console.log('ℹ️ Redis is disabled via ENABLE_QUEUE flag.');
+if (!redisUrl) {
+  console.warn('[Redis] REDIS_URL is missing. Queue and worker features are disabled.');
 }
 
-export { redis, isRedisConnected, ENABLE_QUEUE };
+export const redisConnection = redisUrl
+  ? new IORedis(redisUrl, {
+      maxRetriesPerRequest: null,
+      tls: {},
+    })
+  : null;
+
+redisConnection?.on('connect', () => {
+  console.log('[Redis] Connected.');
+});
+
+redisConnection?.on('ready', () => {
+  console.log('[Redis] Ready for commands.');
+});
+
+redisConnection?.on('error', (error: Error) => {
+  console.error('[Redis] Connection error:', error.message);
+});
+
+redisConnection?.on('close', () => {
+  console.warn('[Redis] Connection closed.');
+});
+
+export const isRedisConfigured = Boolean(redisUrl);

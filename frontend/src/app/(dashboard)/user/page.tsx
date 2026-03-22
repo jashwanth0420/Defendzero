@@ -3,18 +3,26 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, AlertTriangle, Clock, ShieldCheck, Loader2, TrendingUp, Shield } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { AdherenceAPI } from '@/lib/api';
+import { MedicationAPI } from '@/lib/api';
 
 export default function PatientDashboard() {
   const [schedules, setSchedules] = useState<any[]>([]);
+  const [history, setHistory] = useState<any>({ adherencePercent: 0, currentMissedStreak: 0 });
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
       try {
-        const response: any = await AdherenceAPI.getSchedules();
-        setSchedules(response.data || []);
+        const [schedulesResponse, historyResponse, notificationsResponse] = await Promise.all([
+          MedicationAPI.getSchedules() as Promise<any>,
+          MedicationAPI.getHistory() as Promise<any>,
+          MedicationAPI.getNotifications() as Promise<any>,
+        ]);
+        setSchedules(schedulesResponse.data || []);
+        setHistory(historyResponse.data || { adherencePercent: 0, currentMissedStreak: 0 });
+        setNotifications(notificationsResponse.data || []);
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -26,10 +34,13 @@ export default function PatientDashboard() {
 
   const handleMarkTaken = async (id: string) => {
     try {
-      await AdherenceAPI.markTaken(id);
-      // Refresh data
-      const response: any = await AdherenceAPI.getSchedules();
-      setSchedules(response.data || []);
+      await MedicationAPI.logDose({ scheduleId: id, status: 'TAKEN' });
+      const [schedulesResponse, historyResponse] = await Promise.all([
+        MedicationAPI.getSchedules() as Promise<any>,
+        MedicationAPI.getHistory() as Promise<any>,
+      ]);
+      setSchedules(schedulesResponse.data || []);
+      setHistory(historyResponse.data || { adherencePercent: 0, currentMissedStreak: 0 });
     } catch (err: any) {
       alert("Failed to log adherence: " + err.message);
     }
@@ -58,10 +69,10 @@ export default function PatientDashboard() {
       {/* Metrics Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {[
-          { title: 'Adherence Score', value: '94%', icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+          { title: 'Adherence Score', value: `${history.adherencePercent || 0}%`, icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
           { title: 'Active Schedules', value: schedules.length.toString(), icon: Clock, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-          { title: 'Safety Alerts', value: '0', icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-          { title: 'Guarding Guardians', value: '0', icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/10' }
+          { title: 'Unread Alerts', value: notifications.filter((n) => !n.read).length.toString(), icon: AlertTriangle, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+          { title: 'Missed Streak', value: (history.currentMissedStreak || 0).toString(), icon: Shield, color: 'text-purple-400', bg: 'bg-purple-500/10' }
         ].map(metric => (
            <Card key={metric.title} className="bg-slate-900/50 backdrop-blur-md border-slate-800 shadow-2xl overflow-hidden hover:border-slate-700 transition-all duration-300">
              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -95,9 +106,9 @@ export default function PatientDashboard() {
               ) : schedules.map((schedule) => (
                  <div key={schedule.id} className="flex justify-between items-center p-4 rounded-xl border border-slate-800 bg-slate-950/50 hover:bg-slate-800/80 transition-colors">
                    <div className="flex flex-col">
-                      <span className="text-white font-black tracking-tighter uppercase">{schedule.medicine.name}</span>
-                      <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 mt-1">
-                        <Clock className="w-3 h-3 text-indigo-500" /> {schedule.timeOfDay} • {schedule.dosage}
+                      <span className="text-white font-black tracking-tighter uppercase">{schedule.medicineName}</span>
+                        <span className="text-slate-500 text-[10px] font-black uppercase tracking-widest flex items-center gap-1 mt-1">
+                        <Clock className="w-3 h-3 text-indigo-500" /> {(schedule.scheduleTimes || []).join(', ')} • {schedule.dosage}
                       </span>
                    </div>
                    <button 

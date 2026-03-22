@@ -10,6 +10,8 @@ const pharmacyController = new PharmacyController();
 router.post('/patients', doctorController.addPatient);
 router.post('/prescriptions', doctorController.createPrescription);
 router.get('/patients', doctorController.getMyPatients);
+router.put('/patients/:patientId', doctorController.updatePatient);
+router.delete('/patients/:patientId', doctorController.deletePatient);
 
 // Pharmacy Token Generation (Doctor creates purchase limits for patients)
 router.post('/pharmacy-tokens/generate', pharmacyController.generateToken);

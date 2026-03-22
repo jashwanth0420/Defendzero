@@ -67,4 +67,44 @@ export class DoctorController {
       res.status(500).json({ success: false, error: err.message });
     }
   }
+
+  /**
+   * Endpoint: PUT /doctor/patients/:patientId
+   */
+  public async updatePatient(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { patientId } = z.object({ patientId: z.string().uuid() }).parse(req.params);
+      const payload = z
+        .object({
+          firstName: z.string().min(2).optional(),
+          lastName: z.string().min(2).optional(),
+          phone: z.string().optional(),
+          isPregnant: z.boolean().optional(),
+          trimester: z.number().int().min(1).max(3).nullable().optional()
+        })
+        .parse(req.body);
+
+      const doctorId = req.user!.id;
+      const updated = await doctorService.updatePatient(doctorId, patientId, payload);
+
+      res.status(200).json({ success: true, data: updated });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
+
+  /**
+   * Endpoint: DELETE /doctor/patients/:patientId
+   */
+  public async deletePatient(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { patientId } = z.object({ patientId: z.string().uuid() }).parse(req.params);
+      const doctorId = req.user!.id;
+
+      const result = await doctorService.removePatient(doctorId, patientId);
+      res.status(200).json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
 }

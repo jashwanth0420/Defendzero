@@ -74,4 +74,42 @@ export class DoctorService {
     });
     return mappings.map(m => m.patient);
   }
+
+  public async updatePatient(doctorId: string, patientId: string, data: any) {
+    const mapping = await prisma.doctorPatient.findFirst({
+      where: { doctorId, patientId }
+    });
+
+    if (!mapping) {
+      throw new Error('Patient is not linked to this doctor');
+    }
+
+    const payload: Record<string, any> = {};
+    if (data.firstName !== undefined) payload.firstName = data.firstName;
+    if (data.lastName !== undefined) payload.lastName = data.lastName;
+    if (data.phone !== undefined) payload.phone = data.phone;
+    if (data.isPregnant !== undefined) payload.isPregnant = data.isPregnant;
+    if (data.trimester !== undefined) payload.trimester = data.trimester;
+
+    return prisma.user.update({
+      where: { id: patientId },
+      data: payload
+    });
+  }
+
+  public async removePatient(doctorId: string, patientId: string) {
+    const mapping = await prisma.doctorPatient.findFirst({
+      where: { doctorId, patientId }
+    });
+
+    if (!mapping) {
+      throw new Error('Patient is not linked to this doctor');
+    }
+
+    await prisma.doctorPatient.delete({
+      where: { id: mapping.id }
+    });
+
+    return { patientId, removed: true };
+  }
 }
