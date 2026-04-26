@@ -12,7 +12,7 @@ app.use(helmet());
 
 app.use(express.json());
 app.use(cors({
-  origin: "*"
+  origin: "https://defendzero.vercel.app"
 }));
 // Health Check Status
 app.get('/health', (req: Request, res: Response) => {
