@@ -66,23 +66,63 @@ async function main() {
     }
   });
 
-  // 5. Create Prescription
-  const prescription = await prisma.prescription.create({
-    data: {
-      doctorId: doctor.id,
-      patientId: patient.id,
-      notes: 'Take medicines as scheduled.',
-      medicines: {
-        create: [
-          { medicineId: paracetamol.id, dosage: '500mg' },
-          { medicineId: amoxicillin.id, dosage: '250mg' }
-        ]
-      }
+  // 5. Create Pharmacy
+  const pharmacy = await prisma.user.upsert({
+    where: { email: 'pharmacy@defendzero.com' },
+    update: {},
+    create: {
+      email: 'pharmacy@defendzero.com',
+      password,
+      role: Role.PHARMACY,
+      firstName: 'Apollo',
+      lastName: 'MedPlus',
+      storeName: 'Apollo MedPlus Shop #45'
     }
   });
 
-  // 6. Create ADHERENCE SCHEDULES (Morning and Night)
+  // 6. Create Guardian
+  const guardian = await prisma.user.upsert({
+    where: { email: 'guardian@defendzero.com' },
+    update: {},
+    create: {
+      email: 'guardian@defendzero.com',
+      password,
+      role: Role.GUARDIAN,
+      firstName: 'Jane',
+      lastName: 'Doe'
+    }
+  });
+
+  // 7. Link Guardian to Patient
+  await prisma.guardianPatient.upsert({
+    where: { guardianId_patientId: { guardianId: guardian.id, patientId: patient.id } },
+    update: {},
+    create: {
+       guardianId: guardian.id,
+       patientId: patient.id
+    }
+  });
+
+  // 8. Create a VERIFIED Prescription Record (for Hex Token generation)
+  const verifiedPrescription = await prisma.prescriptionRecord.upsert({
+    where: { id: '77777777-7777-7777-7777-777777777777' }, // Fixed ID for easy testing
+    update: {},
+    create: {
+      id: '77777777-7777-7777-7777-777777777777',
+      userId: patient.id,
+      doctorName: 'Dr. Gregory House',
+      issuedDate: new Date(),
+      verified: true,
+      medicines: [
+        { name: 'Amoxicillin', dosage: '250mg', frequency: 'DAILY' },
+        { name: 'Paracetamol', dosage: '500mg', frequency: 'DAILY' }
+      ]
+    }
+  });
+
+  // 9. Create ADHERENCE SCHEDULES (Morning and Night)
   await prisma.schedule.createMany({
+    skipDuplicates: true,
     data: [
       {
         patientId: patient.id,
@@ -90,14 +130,6 @@ async function main() {
         dosage: '500mg',
         frequency: 'DAILY',
         timeOfDay: '08:00', // Morning
-        status: 'ACTIVE'
-      },
-      {
-        patientId: patient.id,
-        medicineId: paracetamol.id,
-        dosage: '500mg',
-        frequency: 'DAILY',
-        timeOfDay: '20:00', // Night
         status: 'ACTIVE'
       },
       {
@@ -115,8 +147,12 @@ async function main() {
   console.log('--- TEST DATA ---');
   console.log('Doctor: doctor@defendzero.com / password123');
   console.log('Patient: patient@defendzero.com / password123');
-  console.log('Medicines: Paracetamol, Amoxicillin');
-  console.log('Schedules: Morning (08:00, 09:00) and Night (20:00) for Patient John Doe');
+  console.log('Pharmacy: pharmacy@defendzero.com / password123');
+  console.log('Guardian: guardian@defendzero.com / password123');
+  console.log('-----------------');
+  console.log('Use patient login to generate a QR Token from the verified prescription.');
+  console.log('Use pharmacy login to LOAD and FULFILL the token.');
+  console.log('Use guardian login to MONITOR the patient.');
 }
 
 main()

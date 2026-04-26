@@ -41,4 +41,13 @@ export class GuardianController {
       res.status(200).json({ success: true, data: [] });
     }
   }
+  public async getPatientDetails(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { patientId } = z.object({ patientId: z.string().uuid() }).parse(req.params);
+      const data = await guardianService.getPatientFullStory(req.user!.id, patientId);
+      res.status(200).json({ success: true, data });
+    } catch (error: any) {
+      res.status(403).json({ success: false, error: error.message });
+    }
+  }
 }

@@ -45,4 +45,25 @@ export class GuardianService {
 
     return guardians.map(g => g.guardian);
   }
+  public async getPatientFullStory(guardianId: string, patientId: string) {
+    const mapping = await prisma.guardianPatient.findFirst({
+      where: { guardianId, patientId }
+    });
+    if (!mapping) throw new Error('You do not guard this patient.');
+
+    const { MedicationService } = await import('../medication/medication.service');
+    const medService = new MedicationService();
+
+    const [schedules, history] = await Promise.all([
+      medService.getSchedules(patientId),
+      medService.getHistory(patientId)
+    ]);
+
+    const patient = await prisma.user.findUnique({
+      where: { id: patientId },
+      select: { firstName: true, lastName: true, email: true }
+    });
+
+    return { patient, schedules, history };
+  }
 }

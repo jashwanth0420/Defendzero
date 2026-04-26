@@ -5,7 +5,7 @@ import { Role } from '@prisma/client';
 export class DoctorService {
   public async createPatient(doctorId: string, data: any) {
     const { email, firstName, lastName, phone, isPregnant, trimester } = data;
-    const tempPassword = await bcrypt.hash('Patient@123', 10);
+    const tempPassword = await bcrypt.hash('password123', 10);
 
     return await prisma.$transaction(async (tx) => {
       // 1. Create Patient User (role = USER)

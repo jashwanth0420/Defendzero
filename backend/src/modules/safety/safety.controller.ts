@@ -5,8 +5,11 @@ import { AuthenticatedRequest } from '../../middlewares/auth.middleware';
 import { SafetyEngineService as MultiSourceSafetyEngineService } from '../medicine-safety/safety-engine.service';
 import { safetyCheckSchema } from '../medicine-safety/safety.schema';
 
+import { N8nSafetyService } from '../medicine-safety/n8n.service';
+
 const safetyEngineService = new SafetyEngineService();
 const multiSourceSafetyEngineService = new MultiSourceSafetyEngineService();
+const n8nSafetyService = new N8nSafetyService();
 
 export class SafetyController {
   
@@ -56,6 +59,23 @@ export class SafetyController {
         res.status(400).json({ success: false, error: 'Malformed Payload boundary', details: error.issues });
       } else {
         res.status(500).json({ success: false, error: error.message || 'Failed to verify medicine intelligence' });
+      }
+    }
+  }
+
+  public async checkN8nSafety(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { medicines } = z.object({
+        medicines: z.array(z.string()).min(1)
+      }).parse(req.body);
+
+      const results = await n8nSafetyService.checkSafety(medicines);
+      res.status(200).json({ success: true, results, data: results });
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ success: false, error: 'Malformed Payload', details: error.issues });
+      } else {
+        res.status(503).json({ success: false, error: error.message || 'Remote Service Unavailable' });
       }
     }
   }

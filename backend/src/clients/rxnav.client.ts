@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { config } from '../config/env.config';
 import { logger } from '../utils/logger';
 
 interface RxNormIdGroup {
@@ -67,7 +68,7 @@ interface RxNormDrugsResponse {
   };
 }
 
-const DEFAULT_TIMEOUT_MS = Number(process.env.RXNAV_TIMEOUT_MS ?? 4000);
+const DEFAULT_TIMEOUT_MS = config.RXNAV_TIMEOUT_MS;
 const MAX_RETRIES = 2;
 
 export class RxNavClient {

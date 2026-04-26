@@ -10,7 +10,7 @@ export class MedicationController {
     try {
       const payload = z.object({
         medicineName: z.string().min(2),
-        composition: z.array(z.string().min(1)).min(1),
+        composition: z.array(z.string().min(1)).default([]),
         dosage: z.string().min(1),
         frequency: z.enum(['DAILY', 'WEEKLY']),
         timingType: z.enum(['BEFORE_FOOD', 'AFTER_FOOD', 'WITH_FOOD']),
@@ -28,6 +28,11 @@ export class MedicationController {
       }
       res.status(400).json({ success: false, error: error.message });
     }
+  }
+
+  public async getPrescriptions(req: AuthenticatedRequest, res: Response) {
+    const data = await medicationService.getPrescriptions(req.user!.id);
+    res.status(200).json({ success: true, data });
   }
 
   public async getSchedules(req: AuthenticatedRequest, res: Response) {

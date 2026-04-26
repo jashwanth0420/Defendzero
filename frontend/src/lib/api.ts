@@ -23,7 +23,12 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
       headers,
     });
 
-    const data = await response.json();
+    let data: any;
+    try {
+      data = await response.json();
+    } catch {
+      data = { success: false, error: 'Unexpected response from server' };
+    }
 
     if (!response.ok) {
       // 404 on list endpoints should be handled as empty data to prevent UI crashes
@@ -41,7 +46,7 @@ export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): 
          }
       }
 
-      throw new Error(data.error || data.message || 'API request failed');
+      throw new Error(data.error || data.message || `API Error (${response.status})`);
     }
 
     return data;
@@ -116,6 +121,7 @@ export const SafetyAPI = {
       return publicApiFetch('/safety-check', { method: 'POST', body: JSON.stringify(payload) });
     }
   },
+  checkN8nWebhook: (payload: any) => apiFetch<any>('/user/safety/webhook', { method: 'POST', body: JSON.stringify(payload) }),
 };
 
 export const MedicinesAPI = {
@@ -142,6 +148,8 @@ export const AdherenceAPI = {
 export const PharmacyAPI = {
   generateToken: (payload: any) => apiFetch('/doctor/pharmacy-tokens/generate', { method: 'POST', body: JSON.stringify(payload) }),
   verifyPurchase: (payload: any) => apiFetch('/pharmacy/process-purchase', { method: 'POST', body: JSON.stringify(payload) }),
+  getTokenDetails: (token: string) => apiFetch(`/pharmacy/purchase-tokens/${token}`),
+  validateHexToken: (payload: any) => apiFetch('/pharmacy/purchase-tokens/validate', { method: 'POST', body: JSON.stringify(payload) }),
   getAll: () => apiFetch('/pharmacy'),
 };
 
@@ -161,6 +169,7 @@ export const MessagesAPI = {
 
 export const GuardianAPI = {
   getPatients: () => apiFetch('/guardian/patients'),
+  getPatientDetails: (id: string) => apiFetch(`/guardian/patients/${id}/details`),
   addPatient: (data: any) => apiFetch('/guardian/add-patient', { method: 'POST', body: JSON.stringify(data) }),
   getMyGuardians: () => apiFetch('/user/guardians'),
 };
@@ -168,6 +177,7 @@ export const GuardianAPI = {
 export const MedicationAPI = {
   createSchedule: (payload: any) => apiFetch('/user/medication/schedules', { method: 'POST', body: JSON.stringify(payload) }),
   getSchedules: () => apiFetch('/user/medication/schedules'),
+  getPrescriptions: () => apiFetch('/user/medication/prescriptions'),
   logDose: (payload: any) => apiFetch('/user/medication/log', { method: 'POST', body: JSON.stringify(payload) }),
   getLogs: (date?: string) => apiFetch(`/user/medication/logs${date ? `?date=${encodeURIComponent(date)}` : ''}`),
   getHistory: () => apiFetch('/user/medication/history'),

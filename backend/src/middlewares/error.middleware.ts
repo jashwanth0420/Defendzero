@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { ZodError } from 'zod';
+import { config } from '../config/env.config';
 
 interface CustomErrorResponse {
   success: boolean;
@@ -59,7 +60,7 @@ export const errorHandler = (
   }
 
   // Hide stack trace in production
-  if (process.env.NODE_ENV !== 'production' && !(err instanceof ZodError)) {
+  if (config.NODE_ENV !== 'production' && !(err instanceof ZodError)) {
     response.stack = err.stack;
   }
 

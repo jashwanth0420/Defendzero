@@ -8,5 +8,6 @@ const guardianController = new GuardianController();
 // Guardian manages their assigned patients
 router.post('/add-patient', guardianController.add);
 router.get('/patients', guardianController.getPatients);
+router.get('/patients/:patientId/details', guardianController.getPatientDetails.bind(guardianController));
 
 export default router;

@@ -9,6 +9,10 @@ const pharmacyController = new PharmacyController();
 // 1. Pharmacy Purchase Transaction Endpoint
 router.post('/process-purchase', pharmacyController.verifyAndPurchase);
 
+// 3. New Hex Token System (via MedicationService)
+router.get('/purchase-tokens/:token', pharmacyController.getTokenDetails.bind(pharmacyController));
+router.post('/purchase-tokens/validate', pharmacyController.validateToken.bind(pharmacyController));
+
 // 2. Pharmacy Information Retrieval
 router.get('/', pharmacyController.getAll);
 

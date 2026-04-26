@@ -6,6 +6,7 @@ const controller = new MedicationController();
 
 router.post('/schedules', controller.createSchedule.bind(controller));
 router.get('/schedules', controller.getSchedules.bind(controller));
+router.get('/prescriptions', controller.getPrescriptions.bind(controller));
 router.post('/log', controller.logDose.bind(controller));
 router.get('/logs', controller.getLogs.bind(controller));
 router.get('/history', controller.getHistory.bind(controller));

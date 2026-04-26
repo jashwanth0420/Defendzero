@@ -82,31 +82,79 @@ export default function PharmacyDashboard() {
               Validate token and quantity
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <input
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              placeholder="Token"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-            />
-            <input
-              type="number"
-              min={1}
-              className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100"
-              value={requestedQuantity}
-              onChange={(e) => setRequestedQuantity(e.target.value)}
-            />
-            <button
-              onClick={verifyPurchase}
-              disabled={busy}
-              className="w-full rounded-lg bg-emerald-600 px-4 py-2 text-sm font-black uppercase tracking-wider text-white hover:bg-emerald-500 disabled:bg-slate-700"
-            >
-              {busy ? 'Verifying...' : 'Verify'}
-            </button>
-            {result && (
-              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-3 text-xs text-emerald-100">
-                {JSON.stringify(result)}
+          <CardContent className="space-y-4">
+            <div className="flex gap-2">
+              <input
+                className="flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-slate-100 text-sm"
+                placeholder="Enter Hex Token"
+                value={token}
+                onChange={(e) => setToken(e.target.value)}
+              />
+              <button
+                onClick={async () => {
+                   if(!token.trim()) return;
+                   setBusy(true);
+                   setError(null);
+                   try {
+                     const res: any = await PharmacyAPI.getTokenDetails(token.trim());
+                     setResult(res.data);
+                   } catch(err: any) {
+                     setError(err.message);
+                   } finally {
+                     setBusy(false);
+                   }
+                }}
+                disabled={busy}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white px-4 rounded-lg text-xs font-black uppercase"
+              >
+                {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : "LOAD"}
+              </button>
+            </div>
+
+            {result && result.medicines && (
+              <div className="space-y-3 p-4 rounded-xl bg-slate-950 border border-slate-800 animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center text-[10px] font-black uppercase text-indigo-400 tracking-widest border-b border-slate-800 pb-2 mb-2">
+                   <span>Patient: {result.patientName}</span>
+                   <span>Expires: {new Date(result.expiryDate).toLocaleDateString()}</span>
+                </div>
+                {result.medicines.map((m: any, idx: number) => (
+                  <div key={idx} className="flex justify-between items-center">
+                    <div>
+                      <div className="text-xs font-bold text-white uppercase">{m.name || m.medicineName}</div>
+                      <div className="text-[10px] text-slate-500">{m.dosage}</div>
+                    </div>
+                    <button
+                      onClick={async () => {
+                         setBusy(true);
+                         setError(null);
+                         try {
+                           const res: any = await PharmacyAPI.validateHexToken({
+                             token: token.trim(),
+                             medicineName: m.name || m.medicineName,
+                             quantity: 1
+                           });
+                           alert("Transaction Successful! Remaining: " + res.data.remainingQuantity);
+                           setToken('');
+                           setResult(null);
+                         } catch(err: any) {
+                           setError(err.message);
+                         } finally {
+                           setBusy(false);
+                         }
+                      }}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1 rounded text-[10px] font-black uppercase"
+                    >
+                      FULFILL
+                    </button>
+                  </div>
+                ))}
               </div>
+            )}
+
+            {!result && (
+               <div className="text-center py-6 text-slate-700 text-[10px] font-black uppercase tracking-widest border border-dashed border-slate-800 rounded-xl">
+                  Enter patient token to begin scanning
+               </div>
             )}
           </CardContent>
         </Card>

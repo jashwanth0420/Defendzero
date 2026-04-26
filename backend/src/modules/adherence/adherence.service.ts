@@ -36,7 +36,7 @@ export class AdherenceService {
       select: { fcmToken: true }
     });
 
-    // Schedule notification in BullMQ
+    // Reminder delivery is handled by the in-memory queue stub.
     if (user?.fcmToken) {
       await adherenceQueueService.scheduleRecurringReminder({
         scheduleId: schedule.id,

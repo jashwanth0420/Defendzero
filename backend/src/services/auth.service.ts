@@ -3,8 +3,9 @@ import { prisma } from '../config/prisma';
 import { Role } from '@prisma/client';
 import { OAuth2Client } from 'google-auth-library';
 import { generateToken, generateRefreshToken, TokenPayload } from '../utils/jwt.util';
+import { config } from '../config/env.config';
 
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const googleClient = config.GOOGLE_CLIENT_ID ? new OAuth2Client(config.GOOGLE_CLIENT_ID) : null;
 
 export interface AuthTokens {
   accessToken: string;
@@ -69,9 +70,13 @@ export class AuthService {
    * Google OAuth Verify and Create/Login
    */
   public async googleLogin(idToken: string): Promise<{ user: any; tokens: AuthTokens }> {
+    if (!config.GOOGLE_CLIENT_ID || !googleClient) {
+      throw new Error('Google login is not configured on this server.');
+    }
+
     const ticket = await googleClient.verifyIdToken({
       idToken,
-      audience: process.env.GOOGLE_CLIENT_ID,
+      audience: config.GOOGLE_CLIENT_ID,
     });
     
     const payload = ticket.getPayload();

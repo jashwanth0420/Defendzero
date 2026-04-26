@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { config } from '../config/env.config';
 import { logger } from '../utils/logger';
 
 interface DailyMedSetIdResult {
@@ -19,7 +20,7 @@ interface DailyMedSectionsResponse {
   data?: DailyMedSectionResult[];
 }
 
-const DEFAULT_TIMEOUT_MS = Number(process.env.DAILYMED_TIMEOUT_MS ?? 4000);
+const DEFAULT_TIMEOUT_MS = config.DAILYMED_TIMEOUT_MS;
 const MAX_RETRIES = 2;
 
 export class DailyMedClient {

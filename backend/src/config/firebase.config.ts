@@ -1,6 +1,7 @@
 import admin from 'firebase-admin';
 import path from 'path';
 import fs from 'fs';
+import { config } from './env.config';
 
 if (!admin.apps.length) {
   try {
@@ -15,8 +16,8 @@ if (!admin.apps.length) {
       console.log('✅ Firebase Admin initialized via local JSON file.');
     } 
     // Fallback to ENV string (Best for production like Vercel/Render)
-    else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    else if (config.FIREBASE_SERVICE_ACCOUNT) {
+      const serviceAccount = JSON.parse(config.FIREBASE_SERVICE_ACCOUNT);
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });

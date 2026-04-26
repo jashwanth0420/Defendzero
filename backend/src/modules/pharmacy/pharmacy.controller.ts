@@ -95,4 +95,36 @@ export class PharmacyController {
       res.status(400).json({ success: false, error: err.message });
     }
   }
+
+  // --- HEX TOKEN HANDLERS (Delegated to MedicationService) ---
+  
+  public async getTokenDetails(req: AuthenticatedRequest, res: Response) {
+    try {
+      const { token } = z.object({ token: z.string() }).parse(req.params);
+      const { MedicationService } = await import('../medication/medication.service');
+      const medService = new MedicationService();
+      const details = await medService.getTokenDetails(token);
+      res.status(200).json({ success: true, data: details });
+    } catch (err: any) {
+      res.status(404).json({ success: false, error: err.message });
+    }
+  }
+
+  public async validateToken(req: AuthenticatedRequest, res: Response) {
+    try {
+      const payload = z.object({
+        token: z.string(),
+        medicineName: z.string(),
+        quantity: z.number().int().positive()
+      }).parse(req.body);
+
+      const { MedicationService } = await import('../medication/medication.service');
+      const medService = new MedicationService();
+      
+      const result = await medService.validatePurchase(req.user!.id, payload.token, payload.medicineName, payload.quantity);
+      res.status(200).json({ success: true, data: result });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err.message });
+    }
+  }
 }

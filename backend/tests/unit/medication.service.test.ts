@@ -31,7 +31,7 @@ jest.mock('../../src/config/prisma', () => ({
   prisma: mockPrisma,
 }));
 
-jest.mock('../../src/jobs/adherence.queue', () => ({
+jest.mock('../../src/queues/adherence.queue', () => ({
   AdherenceQueueService: class {
     scheduleMedicationReminderJobs = jest.fn(async () => undefined);
   },

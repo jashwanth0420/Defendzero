@@ -2,23 +2,70 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldCheck, AlertOctagon, CheckCircle2, AlertTriangle, Plus, X, Loader2, Search, Thermometer, Pill } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, Plus, X, Loader2, Search, Pill } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { SafetyAPI } from '@/lib/api';
 
 // --- TYPES & INTERFACES ---
-interface MedicineResult {
-  name: string;
-  composition: string;
-  duplicate: boolean;
-  overdose_risk: boolean;
-  warning: string;
+interface InteractionResult {
+  drug_1: string;
+  drug_2: string;
+  risk: string;
+  severity: string;
+  evidence?: string;
 }
+
+const normalizeInteractions = (response: any): InteractionResult[] => {
+  const candidates =
+    response?.results ||
+    response?.data?.results ||
+    response?.data ||
+    [];
+
+  if (!Array.isArray(candidates)) {
+    return [];
+  }
+
+  return candidates
+    .map((item: any) => ({
+      drug_1: item?.drug_1 || item?.drug1 || '',
+      drug_2: item?.drug_2 || item?.drug2 || '',
+      risk: item?.risk || item?.message || '',
+      severity: item?.severity || 'moderate',
+      evidence: item?.evidence,
+    }))
+    .filter((item: InteractionResult) => item.drug_1 && item.drug_2 && item.risk);
+};
+
+const getSeverityClasses = (severity: string) => {
+  switch ((severity || '').toLowerCase()) {
+    case 'critical':
+      return 'bg-red-500/10 border-red-500/30 text-red-300';
+    case 'high':
+      return 'bg-orange-500/10 border-orange-500/30 text-orange-300';
+    case 'moderate':
+      return 'bg-yellow-500/10 border-yellow-500/30 text-yellow-300';
+    default:
+      return 'bg-slate-700/30 border-slate-600/50 text-slate-200';
+  }
+};
 
 export default function SafetyEngine() {
   const [inputMedicines, setInputMedicines] = useState<string[]>(['']);
   const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<MedicineResult[] | null>(null);
+  const [results, setResults] = useState<InteractionResult[] | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const severityCounts = (results || []).reduce(
+    (acc, item) => {
+      const key = (item.severity || '').toLowerCase();
+      if (key === 'critical') acc.critical += 1;
+      if (key === 'high') acc.high += 1;
+      if (key === 'moderate') acc.moderate += 1;
+      return acc;
+    },
+    { critical: 0, high: 0, moderate: 0 }
+  );
 
   // --- HANDLERS ---
   const addMedicineField = () => {
@@ -45,9 +92,9 @@ export default function SafetyEngine() {
     // 1. INPUT HANDLING
     // Accept user input as array of medicine names, clean input: trim, remove empty, lowercase
     const medicines = inputMedicines
+      .flatMap((m) => m.split(/[,+;\n]/g))
       .map(m => m.trim())
-      .filter(m => m.length > 0)
-      .map(m => m.toLowerCase());
+      .filter(m => m.length > 0);
 
     if (medicines.length === 0) {
       setErrorMsg("Please enter at least one medicine name.");
@@ -62,35 +109,13 @@ export default function SafetyEngine() {
     console.log("INPUT:", medicines);
 
     try {
-      // 2. API CALL (NO BACKEND)
-      const response = await fetch("https://n8n-production-fc4a.up.railway.app/webhook-test/medicine-check", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          medicines: medicines
-        })
-      });
-
-      if (!response.ok) throw new Error("API failed");
-      const data = await response.json();
+      // 2. API CALL (ROUTED THROUGH BACKEND PROXY TO AVOID CORS)
+      const response = await SafetyAPI.checkN8nWebhook({ medicines });
 
       // 6. DEBUG (REMOVE AFTER TESTING)
-      console.log("API RESPONSE:", data);
+      console.log("API RESPONSE:", response);
 
-      // 3. RESPONSE VALIDATION (CRITICAL FIX)
-      // Ensure medicine names are NEVER empty. Webhook is the ONLY source of truth.
-      const processedResults = data.results.map((item: any, index: number) => ({
-        name: item.name && item.name.trim() !== "" 
-          ? item.name 
-          : medicines[index],   // fallback to original input
-
-        composition: item.composition || "Unknown",
-        duplicate: item.duplicate ?? false,
-        overdose_risk: item.overdose_risk ?? false,
-        warning: item.warning || ""
-      }));
+      const processedResults = normalizeInteractions(response);
 
       // 6. DEBUG (REMOVE AFTER TESTING)
       console.log("FINAL RESULTS:", processedResults);
@@ -100,15 +125,7 @@ export default function SafetyEngine() {
       // 5. ERROR HANDLING
       console.error(err);
       setErrorMsg("⚠️ Unable to check medicines right now. Please try again.");
-      
-      const fallbackData = medicines.map(name => ({
-        name,
-        composition: "Unknown",
-        duplicate: false,
-        overdose_risk: false,
-        warning: "Service unavailable"
-      }));
-      setResults(fallbackData);
+      setResults(null);
     } finally {
       setIsLoading(false);
     }
@@ -237,64 +254,64 @@ export default function SafetyEngine() {
           >
             <div className="flex items-center gap-3 mb-4">
               <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                <CheckCircle2 className="w-7 h-7 text-indigo-400" />
+                <AlertTriangle className="w-7 h-7 text-indigo-400" />
               </div>
               <h2 className="text-2xl font-black text-white tracking-tight">Safety Evaluation Results</h2>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {results.map((result, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: i * 0.1 }}
-                  className="p-8 rounded-[2rem] bg-slate-900 border border-slate-800/80 shadow-xl group hover:border-indigo-500/30 transition-all duration-500"
-                >
-                  <div className="flex justify-between items-start mb-6">
-                    <div>
-                      <h3 className="text-2xl font-black text-white capitalize group-hover:text-indigo-400 transition-colors">
-                        {result.name}
-                      </h3>
-                      <p className="text-slate-500 text-sm font-bold flex items-center gap-1.5 mt-1">
-                        <Thermometer className="w-4 h-4" />
-                        COMPOSITION: <span className="text-slate-300">{result.composition}</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* 4. UI DISPLAY RULES (Status Badges) */}
-                  <div className="space-y-3">
-                    {result.duplicate && (
-                      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
-                        <span className="text-amber-200 font-bold uppercase text-xs tracking-wider">⚠️ Duplicate Drug Alert</span>
-                      </div>
-                    )}
-
-                    {result.overdose_risk && (
-                      <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center gap-3">
-                        <AlertOctagon className="w-5 h-5 text-red-500 shrink-0" />
-                        <span className="text-red-200 font-bold uppercase text-xs tracking-wider">🚨 Overdose Risk Warning</span>
-                      </div>
-                    )}
-
-                    {!result.duplicate && !result.overdose_risk && (
-                      <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center gap-3">
-                        <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                        <span className="text-emerald-200 font-bold uppercase text-xs tracking-wider">✅ Safe Status</span>
-                      </div>
-                    )}
-
-                    {result.warning && (
-                      <div className="mt-4 p-5 rounded-2xl bg-slate-950/80 border border-slate-800 text-slate-300 text-sm italic italic leading-relaxed">
-                        "{result.warning}"
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              ))}
+            <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-amber-200 font-semibold">
+              ⚠️ {results.length} Interaction(s) Detected
             </div>
+
+            {results.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                <span className="px-3 py-1 rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-xs font-semibold uppercase tracking-wide">
+                  Critical: {severityCounts.critical}
+                </span>
+                <span className="px-3 py-1 rounded-xl border border-orange-500/30 bg-orange-500/10 text-orange-300 text-xs font-semibold uppercase tracking-wide">
+                  High: {severityCounts.high}
+                </span>
+                <span className="px-3 py-1 rounded-xl border border-yellow-500/30 bg-yellow-500/10 text-yellow-300 text-xs font-semibold uppercase tracking-wide">
+                  Moderate: {severityCounts.moderate}
+                </span>
+              </div>
+            )}
+
+            {results.length === 0 ? (
+              <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-6 py-5 text-emerald-200 font-medium">
+                No significant drug interactions found
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {results.map((result, i) => (
+                  <motion.div
+                    key={`${result.drug_1}-${result.drug_2}-${i}`}
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: i * 0.1 }}
+                    className="p-8 rounded-[2rem] bg-slate-900 border border-slate-800/80 shadow-xl group hover:border-indigo-500/30 transition-all duration-500"
+                  >
+                    <div className="flex items-start justify-between gap-4 mb-5">
+                      <h3 className="text-2xl font-black text-white leading-tight group-hover:text-indigo-400 transition-colors">
+                        {result.drug_1} + {result.drug_2}
+                      </h3>
+                      <span className={`px-3 py-1.5 rounded-xl border text-xs font-bold uppercase tracking-wide ${getSeverityClasses(result.severity)}`}>
+                        {result.severity}
+                      </span>
+                    </div>
+
+                    <p className="text-slate-200 leading-relaxed">{result.risk}</p>
+
+                    {result.evidence && (
+                      <details className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/60 px-4 py-3 text-sm">
+                        <summary className="cursor-pointer text-slate-400 font-semibold">Evidence</summary>
+                        <p className="mt-3 text-slate-300 leading-relaxed">{result.evidence}</p>
+                      </details>
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

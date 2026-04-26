@@ -1,38 +1,27 @@
-import * as dotenv from 'dotenv';
-dotenv.config();
-import { startAdherenceWorker } from './workers/adherence.worker';
+import app from './app';
+import { config } from './config/env.config';
+import { logger } from './utils/logger';
 
-let app: any;
-try {
-  app = require('./app').default;
-} catch (err: any) {
-  console.error('[DefendZero] Failed to load app:', err.message);
-  // Create minimal app
-  const express = require('express');
-  const cors = require('cors');
-  const helmet = require('helmet');
-  app = express();
-  app.use(helmet());
-  app.use(cors());
-  app.use(express.json());
-  app.get('/health', (req: any, res: any) => {
-    res.json({ success: true, status: 'DefendZero running (partial)', timestamp: new Date().toISOString() });
-  });
-}
+process.on('unhandledRejection', (error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Unknown unhandled rejection';
+  logger.error('Unhandled rejection', { message });
+});
 
-const PORT = process.env.PORT || 5000;
+process.on('uncaughtException', (error: Error) => {
+  logger.error('Uncaught exception', { message: error.message, stack: error.stack });
+  process.exit(1);
+});
 
 const startServer = async () => {
   try {
-    if (process.env.NODE_ENV !== 'test') {
-      startAdherenceWorker();
-    }
-
-    app.listen(PORT, () => {
-      console.log(`[DefendZero] Server running on port ${PORT}`);
+    app.listen(config.PORT, () => {
+      logger.info('DefendZero server running', {
+        port: config.PORT,
+        environment: config.NODE_ENV
+      });
     });
   } catch (error: any) {
-    console.error(`[DefendZero] Failed to start server:`, error.message);
+    logger.error('Failed to start server', { message: error.message, stack: error.stack });
     process.exit(1);
   }
 };

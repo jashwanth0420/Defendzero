@@ -1,8 +1,9 @@
 import { prisma } from '../../config/prisma';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcrypt';
+import { config } from '../../config/env.config';
 
-const TOKEN_SECRET = process.env.JWT_SECRET || 'super_secret_defendzero_key';
+const TOKEN_SECRET = config.JWT_SECRET;
 
 export interface PurchaseTokenPayload {
   jti: string; // Unique Token ID (could be prescription ID)

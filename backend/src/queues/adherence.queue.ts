@@ -1,5 +1,4 @@
-import { Queue } from 'bullmq';
-import { redisConnection } from '../config/redis';
+import { logger } from '../utils/logger';
 
 const ADHERENCE_QUEUE_NAME = 'adherence';
 
@@ -29,98 +28,73 @@ interface MultiTimeReminderInput {
   fcmToken?: string;
 }
 
-export const adherenceQueue = redisConnection
-  ? new Queue<ReminderJobData | TestReminderJobData>(ADHERENCE_QUEUE_NAME, {
-      connection: redisConnection,
-    })
-  : null;
+type ReminderRecord = {
+  kind: 'recurring' | 'scheduled' | 'test';
+  createdAt: string;
+  data: ReminderJobData | TestReminderJobData;
+};
 
-if (!adherenceQueue) {
-  console.warn('[Queue:adherence] Redis unavailable. Jobs will be skipped.');
-}
+const reminderOutbox: ReminderRecord[] = [];
+
+const recordReminder = (kind: ReminderRecord['kind'], data: ReminderRecord['data']): void => {
+  reminderOutbox.push({
+    kind,
+    createdAt: new Date().toISOString(),
+    data
+  });
+
+  if (reminderOutbox.length > 100) {
+    reminderOutbox.shift();
+  }
+};
+
+export const adherenceQueue = null;
+
+export const getQueuedReminders = (): ReminderRecord[] => [...reminderOutbox];
 
 export class AdherenceQueueService {
   public async scheduleRecurringReminder(data: ReminderJobData, frequency: string): Promise<void> {
-    if (!adherenceQueue) {
-      console.warn('[Queue:adherence] Skipping recurring reminder because queue is unavailable.');
-      return;
-    }
-
-    try {
-      await adherenceQueue.add('send-reminder', data, {
-        repeat: frequency === 'DAILY' ? { pattern: '0 8 * * *' } : { pattern: '0 8 * * 1' },
-        removeOnComplete: true,
-        removeOnFail: false,
-        attempts: 3,
-      });
-      console.log(`[Queue:adherence] Recurring reminder scheduled for ${data.medicineName}.`);
-    } catch (error) {
-      console.error('[Queue:adherence] Failed to schedule recurring reminder:', error);
-    }
+    recordReminder('recurring', data);
+    logger.info('Reminder scheduling is running in-memory only; recorded recurring reminder request.', {
+      queue: ADHERENCE_QUEUE_NAME,
+      medicineName: data.medicineName,
+      frequency
+    });
   }
 
   public async scheduleMedicationReminderJobs(data: MultiTimeReminderInput): Promise<void> {
-    if (!adherenceQueue) {
-      console.warn('[Queue:adherence] Skipping medication reminders because queue is unavailable.');
-      return;
-    }
-
+    let scheduledCount = 0;
     for (const timeOfDay of data.scheduleTimes) {
       const [hour, minute] = timeOfDay.split(':').map(Number);
       if (!Number.isFinite(hour) || !Number.isFinite(minute)) {
-        console.warn(`[Queue:adherence] Invalid schedule time ignored: ${timeOfDay}`);
+        logger.warn('Invalid schedule time ignored', { queue: ADHERENCE_QUEUE_NAME, timeOfDay });
         continue;
       }
 
-      const pattern = data.frequency === 'DAILY' ? `${minute} ${hour} * * *` : `${minute} ${hour} * * 1`;
-
-      try {
-        await adherenceQueue.add(
-          'send-reminder',
-          {
-            scheduleId: data.scheduleId,
-            patientId: data.patientId,
-            medicineName: data.medicineName,
-            dosage: data.dosage,
-            mealRelation: data.mealRelation,
-            timeOfDay,
-            fcmToken: data.fcmToken,
-            source: 'medication-dashboard',
-          } satisfies ReminderJobData,
-          {
-            repeat: { pattern },
-            removeOnComplete: true,
-            removeOnFail: false,
-            attempts: 3,
-          }
-        );
-      } catch (error) {
-        console.error('[Queue:adherence] Failed to add medication reminder job:', error);
-      }
+      recordReminder('scheduled', {
+        scheduleId: data.scheduleId,
+        patientId: data.patientId,
+        medicineName: data.medicineName,
+        dosage: data.dosage,
+        mealRelation: data.mealRelation,
+        timeOfDay,
+        fcmToken: data.fcmToken,
+        source: 'medication-dashboard'
+      } satisfies ReminderJobData);
+      scheduledCount += 1;
     }
+
+    logger.info('Reminder scheduling is running in-memory only; recorded medication reminder request.', {
+      queue: ADHERENCE_QUEUE_NAME,
+      scheduleId: data.scheduleId,
+      scheduledCount,
+      frequency: data.frequency
+    });
   }
 }
 
 export const addDelayedReminderTestJob = async (delayMs = 7000): Promise<void> => {
-  if (!adherenceQueue) {
-    console.warn('[Queue:adherence] Cannot enqueue test job because queue is unavailable.');
-    return;
-  }
-
-  const safeDelay = Math.max(5000, Math.min(delayMs, 10000));
-
-  try {
-    await adherenceQueue.add(
-      'test-reminder',
-      { message: 'Reminder triggered' },
-      {
-        delay: safeDelay,
-        removeOnComplete: true,
-        removeOnFail: false,
-      }
-    );
-    console.log(`[Queue:adherence] Test reminder job queued with ${safeDelay}ms delay.`);
-  } catch (error) {
-    console.error('[Queue:adherence] Failed to queue test reminder job:', error);
-  }
+  const safeDelay = Math.max(0, Math.min(Math.round(delayMs), 10000));
+  recordReminder('test', { message: 'Reminder triggered' });
+  logger.info('Reminder test job simulated in-memory.', { queue: ADHERENCE_QUEUE_NAME, delayMs: safeDelay });
 };
